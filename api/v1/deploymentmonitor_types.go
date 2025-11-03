@@ -30,8 +30,8 @@ type DeploymentMonitorStatus struct {
 	LastNotifiedDeploymentHash string `json:"lastNotifiedDeploymentHash,omitempty"`
 }
 
-//+kubebuilder:object:root=true
-//+kubebuilder:subresource:status
+// +kubebuilder:object:root=true
+// +kubebuilder:subresource:status
 
 // DeploymentMonitor is the Schema for the deploymentmonitors API
 type DeploymentMonitor struct {
@@ -42,7 +42,7 @@ type DeploymentMonitor struct {
 	Status DeploymentMonitorStatus `json:"status,omitempty"`
 }
 
-//+kubebuilder:object:root=true
+// +kubebuilder:object:root=true
 
 // DeploymentMonitorList contains a list of DeploymentMonitor
 type DeploymentMonitorList struct {
