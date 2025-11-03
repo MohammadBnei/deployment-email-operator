@@ -6,6 +6,8 @@ cliVersion: 4.9.0
 domain: my.domain
 layout:
 - go.kubebuilder.io/v4
+plugins:
+  helm.kubebuilder.io/v1-alpha: {}
 projectName: deployment-email-operator
 repo: deployment-email-operator
 resources:

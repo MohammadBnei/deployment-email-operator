@@ -1,8 +1,11 @@
+{{- if .Values.rbac.enable }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: manager-role
+  labels:
+    {{- include "chart.labels" . | nindent 4 }}
+  name: deployment-email-operator-manager-role
 rules:
 - apiGroups:
   - ""
@@ -46,3 +49,4 @@ rules:
   - get
   - patch
   - update
+{{- end -}}
