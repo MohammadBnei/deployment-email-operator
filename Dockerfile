@@ -28,7 +28,7 @@ FROM gcr.io/distroless/static:nonroot
 WORKDIR /app
 
 # Copy binary and change ownership
-COPY --chown=65532:65532 --from=builder /app/manager .
+COPY --chown=65532:65532 --from=builder /workspace/manager /app/manager
 
 USER 65532:65532
 
