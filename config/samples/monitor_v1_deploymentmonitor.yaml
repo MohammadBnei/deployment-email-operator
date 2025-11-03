@@ -7,13 +7,12 @@ metadata:
   name: deploymentmonitor-sample
 spec:
   # Add fields here to configure the behavior of the operator
-  monitoredAnnotationKey: "monitor.example.com/enabled"
+  monitoredAnnotationKey: "monitor.bnei.dev/enabled"
   monitoredAnnotationValue: "true"
   # Uncomment the following lines to monitor by label instead of annotation
   # monitoredLabelKey: "app.kubernetes.io/component"
   # monitoredLabelValue: "frontend"
-  recipientEmail: "your-email@example.com" # Replace with the email address to send notifications
-  smtpConfigSecretRef:
-    name: my-smtp-config-secret # Name of the Secret containing SMTP configuration
+  recipientEmail: "mohammad@bnei.dev" # Replace with the email address to send notifications
+  smtpSecretName: "namespace/my-smtp-config-secret" # Name of the Secret containing SMTP configuration
     # The 'key' field is optional here. If omitted, the controller expects
     # 'smtpServer', 'smtpPort', 'smtpUsername', 'smtpPassword' keys in the secret.

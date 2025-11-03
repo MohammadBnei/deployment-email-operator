@@ -79,5 +79,3 @@ certmanager:
 networkPolicy:
   enable: false
 
-smtpSecretName: smtp-auth-secret
-

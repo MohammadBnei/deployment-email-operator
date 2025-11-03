@@ -106,7 +106,7 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// Check if SMTPConfigSecretRef is provided before attempting to fetch config
 	if deploymentMonitor.Spec.SMTPSecretName == "" {
-		log.Error(fmt.Errorf("SMTPConfigSecretRef is not defined"), "Cannot send email without SMTP configuration", "DeploymentMonitor.Name", deploymentMonitor.Name)
+		log.Error(fmt.Errorf("SMTPSecretName is not defined"), "Cannot send email without SMTP configuration", "DeploymentMonitor.Name", deploymentMonitor.Name)
 		// Requeue after a short period to allow user to fix the CRD
 		return ctrl.Result{RequeueAfter: 1 * time.Minute}, nil
 	}
