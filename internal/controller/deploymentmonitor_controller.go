@@ -20,14 +20,11 @@ import (
 	"context"
 	"fmt"
 	"net/smtp"
-	"strconv"
-	"strings"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -116,7 +113,7 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		// Send email
 		err = SendEmail(
-			deploymentMonitor.Spec.SMTPServergo,
+			deploymentMonitor.Spec.SMTPServer,
 			deploymentMonitor.Spec.SMTPPort,
 			deploymentMonitor.Spec.SMTPUsername,
 			smtpPassword,
