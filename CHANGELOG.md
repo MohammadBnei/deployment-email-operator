@@ -1,5 +1,13 @@
 # Changelog
 
+# [0.18.0](https://github.com/MohammadBnei/deployment-email-operator/compare/back-0.17.0...back-0.18.0) (2025-11-03)
+
+
+### Features
+
+* Add email template to DeploymentMonitor sample ([05f6df5](https://github.com/MohammadBnei/deployment-email-operator/commit/05f6df50ff0419f6a17fa5bef100484ff59bdd9e))
+* Add email templating to DeploymentMonitor ([e085b25](https://github.com/MohammadBnei/deployment-email-operator/commit/e085b2540896f8cbd7632242c19d6f5922aa9753))
+
 # [0.17.0](https://github.com/MohammadBnei/deployment-email-operator/compare/back-0.16.0...back-0.17.0) (2025-11-03)
 
 # [0.16.0](https://github.com/MohammadBnei/deployment-email-operator/compare/back-0.15.0...back-0.16.0) (2025-11-03)
