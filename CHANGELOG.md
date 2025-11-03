@@ -1,5 +1,12 @@
 # Changelog
 
+# [0.21.0](https://github.com/MohammadBnei/deployment-email-operator/compare/back-0.20.0...back-0.21.0) (2025-11-03)
+
+
+### Bug Fixes
+
+* Prevent infinite reconciliation loop by tracking deployment status individually ([0631c7e](https://github.com/MohammadBnei/deployment-email-operator/commit/0631c7e6e0ea0ecbeed333af52f545defdb7f5a8))
+
 # [0.20.0](https://github.com/MohammadBnei/deployment-email-operator/compare/back-0.19.0...back-0.20.0) (2025-11-03)
 
 
