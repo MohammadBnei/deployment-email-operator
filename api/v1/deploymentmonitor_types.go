@@ -12,7 +12,7 @@ type DeploymentMonitorSpec struct {
 	MonitoredLabelKey        string           `json:"monitoredLabelKey,omitempty"`
 	MonitoredLabelValue      string           `json:"monitoredLabelValue,omitempty"`
 	RecipientEmail           string           `json:"recipientEmail"`
-	SMTPServergo             string           `json:"smtpServer"`
+	SMTPServer               string           `json:"smtpServer"` // Corrected field name
 	SMTPPort                 int              `json:"smtpPort"`
 	SMTPUsername             string           `json:"smtpUsername"`
 	SMTPPasswordSecretRef    *SecretReference `json:"smtpPasswordSecretRef,omitempty"`
@@ -27,6 +27,10 @@ type SecretReference struct {
 // DeploymentMonitorStatus defines the observed state of DeploymentMonitor
 type DeploymentMonitorStatus struct {
 	// Add status fields if needed, e.g., lastNotificationTime, observedDeployments
+	// +optional
+	LastNotificationTime *metav1.Time `json:"lastNotificationTime,omitempty"`
+	// +optional
+	LastNotifiedDeploymentHash string `json:"lastNotifiedDeploymentHash,omitempty"`
 }
 
 //+kubebuilder:object:root=true
