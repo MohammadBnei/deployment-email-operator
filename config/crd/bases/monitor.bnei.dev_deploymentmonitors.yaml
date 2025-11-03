@@ -66,11 +66,16 @@ spec:
             description: DeploymentMonitorStatus defines the observed state of DeploymentMonitor
             properties:
               lastNotificationTime:
-                description: Add status fields if needed, e.g., lastNotificationTime,
-                  observedDeployments
+                description: LastNotificationTime is the last time an email was sent
+                  for any monitored deployment.
                 format: date-time
                 type: string
               lastNotifiedDeploymentHash:
+                description: |-
+                  LastNotifiedDeploymentHash is the hash of the deployment's state (image, replicas)
+                  that triggered the last notification. This is a simplified approach and
+                  assumes a single deployment change at a time or that the hash represents
+                  the aggregate state that triggered the last notification.
                 type: string
             type: object
         type: object
