@@ -1,0 +1,9 @@
+apiVersion: monitor.my.domain/v1
+kind: DeploymentMonitor
+metadata:
+  labels:
+    app.kubernetes.io/name: deployment-email-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: deploymentmonitor-sample
+spec:
+  # TODO(user): Add fields here
