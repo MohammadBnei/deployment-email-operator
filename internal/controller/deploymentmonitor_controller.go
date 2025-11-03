@@ -105,7 +105,7 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 
 	// Check if SMTPConfigSecretRef is provided before attempting to fetch config
-	if deploymentMonitor.Spec.SMTPConfigSecretRef == nil {
+	if deploymentMonitor.Spec.SMTPSecretName == "" {
 		log.Error(fmt.Errorf("SMTPConfigSecretRef is not defined"), "Cannot send email without SMTP configuration", "DeploymentMonitor.Name", deploymentMonitor.Name)
 		// Requeue after a short period to allow user to fix the CRD
 		return ctrl.Result{RequeueAfter: 1 * time.Minute}, nil
@@ -114,7 +114,7 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	// Fetch SMTP configuration from Secret
 	smtpConfig, err := r.getSMTPConfig(ctx, deploymentMonitor)
 	if err != nil {
-		log.Error(err, "Failed to get SMTP configuration from secret", "Secret.Name", deploymentMonitor.Spec.SMTPConfigSecretRef.Name)
+		log.Error(err, "Failed to get SMTP configuration from secret", "Secret.Name", deploymentMonitor.Spec.SMTPSecretName)
 		// If we can't get SMTP config, we can't send emails, so requeue with error.
 		return ctrl.Result{}, err
 	}
@@ -200,13 +200,13 @@ func (r *DeploymentMonitorReconciler) isDeploymentMonitored(dep *appsv1.Deployme
 // getSMTPConfig retrieves the SMTP configuration from the specified Kubernetes Secret.
 func (r *DeploymentMonitorReconciler) getSMTPConfig(ctx context.Context, dm *monitorv1.DeploymentMonitor) (*SMTPConfig, error) {
 	// This check is now also performed before calling this function, but keeping it here for robustness
-	if dm.Spec.SMTPConfigSecretRef == nil {
+	if dm.Spec.SMTPSecretName == "" {
 		return nil, fmt.Errorf("SMTPConfigSecretRef is not defined in DeploymentMonitor %s/%s", dm.Namespace, dm.Name)
 	}
 
 	secret := &corev1.Secret{}
 	secretName := types.NamespacedName{
-		Name:      dm.Spec.SMTPConfigSecretRef.Name,
+		Name:      dm.Spec.SMTPSecretName,
 		Namespace: dm.Namespace, // Assuming secret is in the same namespace as DeploymentMonitor
 	}
 

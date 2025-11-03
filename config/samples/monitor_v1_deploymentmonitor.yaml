@@ -1,4 +1,4 @@
-apiVersion: monitor.my.domain/v1
+apiVersion: monitor.bnei.dev/v1
 kind: DeploymentMonitor
 metadata:
   labels:

@@ -10,9 +10,9 @@ metadata:
     "helm.sh/resource-policy": keep
     {{- end }}
     controller-gen.kubebuilder.io/version: v0.19.0
-  name: deploymentmonitors.monitor.my.domain
+  name: deploymentmonitors.monitor.bnei.dev
 spec:
-  group: monitor.my.domain
+  group: monitor.bnei.dev
   names:
     kind: DeploymentMonitor
     listKind: DeploymentMonitorList
@@ -55,17 +55,8 @@ spec:
                 type: string
               recipientEmail:
                 type: string
-              smtpConfigSecretRef:
-                description: SecretReference defines a reference to a secret key
-                properties:
-                  key:
-                    type: string
-                  name:
-                    type: string
-                required:
-                - key
-                - name
-                type: object
+              smtpSecretName:
+                type: string
             required:
             - recipientEmail
             type: object

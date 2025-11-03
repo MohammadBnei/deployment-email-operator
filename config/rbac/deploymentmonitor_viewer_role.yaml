@@ -1,7 +1,7 @@
 # This rule is not used by the project deployment-email-operator itself.
 # It is provided to allow the cluster admin to help manage permissions for users.
 #
-# Grants read-only access to monitor.my.domain resources.
+# Grants read-only access to monitor.bnei.dev resources.
 # This role is intended for users who need visibility into these resources
 # without permissions to modify them. It is ideal for monitoring purposes and limited-access viewing.
 
@@ -14,7 +14,7 @@ metadata:
   name: deploymentmonitor-viewer-role
 rules:
 - apiGroups:
-  - monitor.my.domain
+  - monitor.bnei.dev
   resources:
   - deploymentmonitors
   verbs:
@@ -22,7 +22,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - monitor.my.domain
+  - monitor.bnei.dev
   resources:
   - deploymentmonitors/status
   verbs:

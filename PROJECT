@@ -3,7 +3,7 @@
 # and allow the plugins properly work.
 # More info: https://book.kubebuilder.io/reference/project-config.html
 cliVersion: 4.9.0
-domain: my.domain
+domain: bnei.dev
 layout:
 - go.kubebuilder.io/v4
 plugins:
@@ -16,7 +16,7 @@ resources:
     crdVersion: v1
     namespaced: true
   controller: true
-  domain: my.domain
+  domain: bnei.dev
   group: monitor
   kind: DeploymentMonitor
   path: deployment-email-operator/api/v1
