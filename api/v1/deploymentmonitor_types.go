@@ -12,16 +12,13 @@ type DeploymentMonitorSpec struct {
 	MonitoredLabelKey        string           `json:"monitoredLabelKey,omitempty"`
 	MonitoredLabelValue      string           `json:"monitoredLabelValue,omitempty"`
 	RecipientEmail           string           `json:"recipientEmail"`
-	SMTPServer               string           `json:"smtpServer"` // Corrected field name
-	SMTPPort                 int              `json:"smtpPort"`
-	SMTPUsername             string           `json:"smtpUsername"`
-	SMTPPasswordSecretRef    *SecretReference `json:"smtpPasswordSecretRef,omitempty"`
+	SMTPConfigSecretRef      *SecretReference `json:"smtpConfigSecretRef,omitempty"` // New field for SMTP config secret
 }
 
 // SecretReference defines a reference to a secret key
 type SecretReference struct {
 	Name string `json:"name"`
-	Key  string `json:"key"`
+	Key  string `json:"key"` // Key is optional if the secret contains multiple keys for different config items
 }
 
 // DeploymentMonitorStatus defines the observed state of DeploymentMonitor

@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/smtp"
+	"strconv"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -35,6 +36,14 @@ import (
 
 	monitorv1 "deployment-email-operator/api/v1"
 )
+
+// SMTPConfig holds the SMTP server configuration
+type SMTPConfig struct {
+	Server   string
+	Port     int
+	Username string
+	Password string
+}
 
 // DeploymentMonitorReconciler reconciles a DeploymentMonitor object
 type DeploymentMonitorReconciler struct {
@@ -88,6 +97,14 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	}
 
+	// Fetch SMTP configuration from Secret
+	smtpConfig, err := r.getSMTPConfig(ctx, deploymentMonitor)
+	if err != nil {
+		log.Error(err, "Failed to get SMTP configuration from secret", "Secret.Name", deploymentMonitor.Spec.SMTPConfigSecretRef.Name)
+		// If we can't get SMTP config, we can't send emails, so requeue with error.
+		return ctrl.Result{}, err
+	}
+
 	// For each monitored deployment, check for changes and send notifications
 	for _, dep := range monitoredDeployments {
 		// In a real-world scenario, you'd want to store the last observed state
@@ -98,14 +115,6 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		log.Info("Monitored Deployment detected", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
 
-		// Fetch SMTP password from Secret
-		smtpPassword, err := r.getSMTPPassword(ctx, deploymentMonitor)
-		if err != nil {
-			log.Error(err, "Failed to get SMTP password from secret", "Secret.Name", deploymentMonitor.Spec.SMTPPasswordSecretRef.Name)
-			// Don't block other reconciliations, but log the error.
-			continue
-		}
-
 		// Construct email content
 		subject := fmt.Sprintf("Deployment Change Alert: %s/%s", dep.Namespace, dep.Name)
 		body := fmt.Sprintf("Deployment %s/%s has been updated or reconciled.\n\nDetails:\nImage: %s\nReplicas: %d\n\nThis is an automated notification from your Kubernetes Deployment Monitor Operator.",
@@ -113,10 +122,10 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		// Send email
 		err = SendEmail(
-			deploymentMonitor.Spec.SMTPServer,
-			deploymentMonitor.Spec.SMTPPort,
-			deploymentMonitor.Spec.SMTPUsername,
-			smtpPassword,
+			smtpConfig.Server,
+			smtpConfig.Port,
+			smtpConfig.Username,
+			smtpConfig.Password,
 			deploymentMonitor.Spec.RecipientEmail,
 			subject,
 			body,
@@ -164,29 +173,51 @@ func (r *DeploymentMonitorReconciler) isDeploymentMonitored(dep *appsv1.Deployme
 	return false
 }
 
-// getSMTPPassword retrieves the SMTP password from the specified Kubernetes Secret.
-func (r *DeploymentMonitorReconciler) getSMTPPassword(ctx context.Context, dm *monitorv1.DeploymentMonitor) (string, error) {
-	if dm.Spec.SMTPPasswordSecretRef == nil {
-		return "", fmt.Errorf("SMTPPasswordSecretRef is not defined in DeploymentMonitor %s/%s", dm.Namespace, dm.Name)
+// getSMTPConfig retrieves the SMTP configuration from the specified Kubernetes Secret.
+func (r *DeploymentMonitorReconciler) getSMTPConfig(ctx context.Context, dm *monitorv1.DeploymentMonitor) (*SMTPConfig, error) {
+	if dm.Spec.SMTPConfigSecretRef == nil {
+		return nil, fmt.Errorf("SMTPConfigSecretRef is not defined in DeploymentMonitor %s/%s", dm.Namespace, dm.Name)
 	}
 
 	secret := &corev1.Secret{}
 	secretName := types.NamespacedName{
-		Name:      dm.Spec.SMTPPasswordSecretRef.Name,
+		Name:      dm.Spec.SMTPConfigSecretRef.Name,
 		Namespace: dm.Namespace, // Assuming secret is in the same namespace as DeploymentMonitor
 	}
 
 	err := r.Get(ctx, secretName, secret)
 	if err != nil {
-		return "", fmt.Errorf("failed to get secret %s/%s: %w", secretName.Namespace, secretName.Name, err)
+		return nil, fmt.Errorf("failed to get secret %s/%s: %w", secretName.Namespace, secretName.Name, err)
 	}
 
-	passwordBytes, ok := secret.Data[dm.Spec.SMTPPasswordSecretRef.Key]
+	smtpServer, ok := secret.Data["smtpServer"]
 	if !ok {
-		return "", fmt.Errorf("key %s not found in secret %s/%s", dm.Spec.SMTPPasswordSecretRef.Key, secretName.Namespace, secretName.Name)
+		return nil, fmt.Errorf("key 'smtpServer' not found in secret %s/%s", secretName.Namespace, secretName.Name)
+	}
+	smtpPortStr, ok := secret.Data["smtpPort"]
+	if !ok {
+		return nil, fmt.Errorf("key 'smtpPort' not found in secret %s/%s", secretName.Namespace, secretName.Name)
+	}
+	smtpUsername, ok := secret.Data["smtpUsername"]
+	if !ok {
+		return nil, fmt.Errorf("key 'smtpUsername' not found in secret %s/%s", secretName.Namespace, secretName.Name)
+	}
+	smtpPassword, ok := secret.Data["smtpPassword"]
+	if !ok {
+		return nil, fmt.Errorf("key 'smtpPassword' not found in secret %s/%s", secretName.Namespace, secretName.Name)
 	}
 
-	return string(passwordBytes), nil
+	port, err := strconv.Atoi(string(smtpPortStr))
+	if err != nil {
+		return nil, fmt.Errorf("invalid smtpPort value in secret %s/%s: %w", secretName.Namespace, secretName.Name, err)
+	}
+
+	return &SMTPConfig{
+		Server:   string(smtpServer),
+		Port:     port,
+		Username: string(smtpUsername),
+		Password: string(smtpPassword),
+	}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.

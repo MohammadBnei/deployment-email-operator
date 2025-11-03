@@ -85,24 +85,27 @@ make deploy IMG="${IMG}"
 
 ### 4. Create an SMTP Secret
 
-Your operator needs credentials to send emails. Create a Kubernetes Secret in the same namespace where your operator is deployed (e.g., `deployment-monitor-system`, if you didn't change it).
+Your operator needs credentials and configuration to send emails. Create a Kubernetes Secret in the same namespace where your operator is deployed (e.g., `deployment-monitor-system`, if you didn't change it). This secret will hold the SMTP server, port, username, and password.
 
 ```yaml
-# config/samples/smtp-secret.yaml
+# config/samples/smtp-config-secret.yaml
 apiVersion: v1
 kind: Secret
 metadata:
-  name: my-smtp-secret
+  name: my-smtp-config-secret
   namespace: deployment-monitor-system # IMPORTANT: Ensure this matches your operator's namespace
 type: Opaque
 data:
-  password: <base64-encoded-smtp-password> # Replace with `echo -n "your-smtp-password" | base64`
+  smtpServer: <base64-encoded-smtp-server>   # e.g., echo -n "smtp.your-provider.com" | base64
+  smtpPort: <base64-encoded-smtp-port>       # e.g., echo -n "587" | base64
+  smtpUsername: <base64-encoded-smtp-username> # e.g., echo -n "your-smtp-username@your-provider.com" | base64
+  smtpPassword: <base64-encoded-smtp-password> # e.g., echo -n "your-smtp-password" | base64
 ```
 
 Apply this secret:
 
 ```bash
-kubectl apply -f config/samples/smtp-secret.yaml
+kubectl apply -f config/samples/smtp-config-secret.yaml
 ```
 
 ### 5. Create a DeploymentMonitor Custom Resource
@@ -121,12 +124,9 @@ spec:
   # monitoredLabelKey: "app.kubernetes.io/component" # Uncomment and configure for label-based monitoring
   # monitoredLabelValue: "backend"
   recipientEmail: "your-alert-email@example.com" # Replace with your notification email
-  smtpServer: "smtp.your-provider.com"          # Replace with your SMTP server
-  smtpPort: 587                                # Replace with your SMTP port
-  smtpUsername: "your-smtp-username@your-provider.com" # Replace with your SMTP username
-  smtpPasswordSecretRef:
-    name: my-smtp-secret
-    key: password
+  smtpConfigSecretRef:
+    name: my-smtp-config-secret # Reference to the secret created above
+    # The 'key' field is optional here, as we expect multiple keys within the secret
 ```
 
 Apply your `DeploymentMonitor` CR:
@@ -224,21 +224,18 @@ The `DeploymentMonitor` Custom Resource defines the criteria for monitoring Depl
 | `monitoredLabelKey`       | `string`                       | The key of the label to look for on Deployments.                                                                                         | No       |
 | `monitoredLabelValue`     | `string`                       | The value of the label key. If empty, the presence of the key is sufficient.                                                             | No       |
 | `recipientEmail`          | `string`                       | The email address to which notifications will be sent.                                                                                   | Yes      |
-| `smtpServer`              | `string`                       | The hostname or IP address of the SMTP server.                                                                                           | Yes      |
-| `smtpPort`                | `integer`                      | The port of the SMTP server (e.g., 587 for TLS/STARTTLS).                                                                                | Yes      |
-| `smtpUsername`            | `string`                       | The username for SMTP authentication.                                                                                                    | Yes      |
-| `smtpPasswordSecretRef`   | `SecretReference`              | A reference to a Kubernetes Secret containing the SMTP password.                                                                         | Yes      |
-| `smtpPasswordSecretRef.name`| `string`                     | The name of the Secret that stores the SMTP password.                                                                                    | Yes      |
-| `smtpPasswordSecretRef.key`| `string`                      | The key within the Secret's `data` field that holds the password.                                                                        | Yes      |
+| `smtpConfigSecretRef`     | `SecretReference`              | A reference to a Kubernetes Secret containing all SMTP configuration (server, port, username, password).                                 | Yes      |
+| `smtpConfigSecretRef.name`| `string`                     | The name of the Secret that stores the SMTP configuration.                                                                               | Yes      |
+| `smtpConfigSecretRef.key` | `string`                     | *Optional*. If specified, this key within the Secret's `data` field will be used. Otherwise, the controller expects specific keys (`smtpServer`, `smtpPort`, `smtpUsername`, `smtpPassword`) within the secret. | No       |
 
 ## How it Works
 
-1. **`DeploymentMonitor` CR**: You create a `DeploymentMonitor` custom resource to configure your monitoring rules. This specifies the annotation/label to watch for, the recipient email, and SMTP server details.
+1. **`DeploymentMonitor` CR**: You create a `DeploymentMonitor` custom resource to configure your monitoring rules. This specifies the annotation/label to watch for, the recipient email, and a reference to an SMTP configuration Secret.
 2. **Controller Watches**: The operator's controller monitors two types of resources:
     - `DeploymentMonitor` instances: To know which Deployments to monitor and how to notify.
     - `Deployments` across all namespaces: To detect changes in any Deployment that matches a configured `DeploymentMonitor` rule. The manager's default behavior watches all namespaces when no specific namespace is configured [1].
 3. **Change Detection**: When a Deployment is created, updated, or deleted, or when its status changes, the controller compares its current state against the criteria defined in any existing `DeploymentMonitor` CRs.
-4. **Email Notification**: If a Deployment matches the monitoring criteria and a significant change is detected, the operator constructs an email and sends it to the specified recipient using the configured SMTP server and credentials stored securely in a Kubernetes Secret.
+4. **Email Notification**: If a Deployment matches the monitoring criteria and a significant change is detected, the operator retrieves the full SMTP configuration from the referenced Secret, constructs an email, and sends it to the specified recipient.
 
 ## Contributing
 
