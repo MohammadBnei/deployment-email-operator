@@ -87,6 +87,7 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	if err = r.List(ctx, deploymentList, listOpts...); err != nil {
 		log.Error(err, "Failed to list Deployments")
 		return ctrl.Result{}, err
+		// TODO: Should we requeue here? If we can't list deployments, we can't monitor anything.
 	}
 
 	// Filter deployments based on the DeploymentMonitor's spec
@@ -95,6 +96,12 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		if r.isDeploymentMonitored(&dep, deploymentMonitor) {
 			monitoredDeployments = append(monitoredDeployments, dep)
 		}
+	}
+
+	// If no deployments are monitored, we can stop here.
+	if len(monitoredDeployments) == 0 {
+		log.Info("No deployments found matching criteria for DeploymentMonitor", "DeploymentMonitor.Name", deploymentMonitor.Name)
+		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
 	// Fetch SMTP configuration from Secret
@@ -115,10 +122,20 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		log.Info("Monitored Deployment detected", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
 
+		// Safely get image and replicas
+		image := "N/A"
+		if len(dep.Spec.Template.Spec.Containers) > 0 {
+			image = dep.Spec.Template.Spec.Containers[0].Image
+		}
+		replicas := int32(1) // Default value
+		if dep.Spec.Replicas != nil {
+			replicas = *dep.Spec.Replicas
+		}
+
 		// Construct email content
 		subject := fmt.Sprintf("Deployment Change Alert: %s/%s", dep.Namespace, dep.Name)
 		body := fmt.Sprintf("Deployment %s/%s has been updated or reconciled.\n\nDetails:\nImage: %s\nReplicas: %d\n\nThis is an automated notification from your Kubernetes Deployment Monitor Operator.",
-			dep.Namespace, dep.Name, dep.Spec.Template.Spec.Containers[0].Image, *dep.Spec.Replicas) // Assuming first container for image
+			dep.Namespace, dep.Name, image, replicas)
 
 		// Send email
 		err = SendEmail(
