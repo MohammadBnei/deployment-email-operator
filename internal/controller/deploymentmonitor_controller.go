@@ -19,6 +19,8 @@ package controller
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"net/smtp"
 	"strconv"
@@ -28,6 +30,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -123,14 +126,6 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 	// For each monitored deployment, check for changes and send notifications
 	for _, dep := range monitoredDeployments {
-		// In a real-world scenario, you'd want to store the last observed state
-		// of the deployment (e.g., in the DeploymentMonitor's status or a separate CR)
-		// to detect actual changes. For this basic implementation, we'll just log
-		// and send an email for any reconciliation of a monitored deployment.
-		// A more robust solution would involve hashing the spec or comparing specific fields.
-
-		log.Info("Monitored Deployment detected", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name)
-
 		// Safely get image and replicas
 		image := "N/A"
 		if len(dep.Spec.Template.Spec.Containers) > 0 {
@@ -140,6 +135,16 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		if dep.Spec.Replicas != nil {
 			replicas = *dep.Spec.Replicas
 		}
+
+		currentDeploymentHash := calculateDeploymentHash(image, replicas)
+
+		// Only send email if the deployment state has changed since the last notification
+		if currentDeploymentHash == deploymentMonitor.Status.LastNotifiedDeploymentHash {
+			log.V(1).Info("Deployment state unchanged, no notification needed", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name, "Hash", currentDeploymentHash)
+			continue // Skip to the next deployment
+		}
+
+		log.Info("Monitored Deployment change detected", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name, "OldHash", deploymentMonitor.Status.LastNotifiedDeploymentHash, "NewHash", currentDeploymentHash)
 
 		// Prepare data for template
 		templateData := struct {
@@ -197,18 +202,20 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			// Continue to process other deployments/monitors even if one email fails
 		} else {
 			log.Info("Email notification sent successfully", "Recipient", deploymentMonitor.Spec.RecipientEmail, "Deployment", dep.Name)
-			// Update status to record last notification time, if status fields were defined
-			// deploymentMonitor.Status.LastNotificationTime = metav1.NewTime(time.Now())
-			// if err := r.Status().Update(ctx, deploymentMonitor); err != nil {
-			// 	log.Error(err, "Failed to update DeploymentMonitor status")
-			// 	return ctrl.Result{}, err
-			// }
+
+			// Update status to record last notification time and deployment hash
+			deploymentMonitor.Status.LastNotificationTime = &metav1.Time{Time: time.Now()}
+			deploymentMonitor.Status.LastNotifiedDeploymentHash = currentDeploymentHash
+			if err := r.Status().Update(ctx, deploymentMonitor); err != nil {
+				log.Error(err, "Failed to update DeploymentMonitor status")
+				return ctrl.Result{}, err
+			}
 		}
 	}
 
 	// Requeue after a certain duration to periodically check for changes,
 	// or rely solely on watch events for more immediate reactions.
-	// For now, we'll rely on watch events.
+	// For now, we'll rely on watch events and a periodic requeue for robustness.
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
 
@@ -243,9 +250,12 @@ func (r *DeploymentMonitorReconciler) getSMTPConfig(ctx context.Context, dm *mon
 	}
 
 	secret := &corev1.Secret{}
+	// Assuming secret is in the same namespace as DeploymentMonitor for now.
+	// If DeploymentMonitor is cluster-scoped, the secret should be in a well-known namespace
+	// or the secret reference should include a namespace.
 	secretName := types.NamespacedName{
 		Name:      dm.Spec.SMTPSecretName,
-		Namespace: dm.Namespace, // Assuming secret is in the same namespace as DeploymentMonitor
+		Namespace: dm.Namespace,
 	}
 
 	err := r.Get(ctx, secretName, secret)
@@ -281,6 +291,13 @@ func (r *DeploymentMonitorReconciler) getSMTPConfig(ctx context.Context, dm *mon
 		Username: string(smtpUsername),
 		Password: string(smtpPassword),
 	}, nil
+}
+
+// calculateDeploymentHash generates a SHA256 hash based on the deployment's image and replicas.
+func calculateDeploymentHash(image string, replicas int32) string {
+	data := fmt.Sprintf("%s-%d", image, replicas)
+	hash := sha256.Sum256([]byte(data))
+	return hex.EncodeToString(hash[:])
 }
 
 // SetupWithManager sets up the controller with the Manager.
