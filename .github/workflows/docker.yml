@@ -8,6 +8,8 @@ on:
       - "**.graphqls"
       - "Dockerfile"
   push:
+    tags:
+      - "*"
 
 env:
   IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/deployment-monitor-operator
