@@ -3,7 +3,7 @@ controllerManager:
   replicas: 1
   container:
     image:
-      repository: controller
+      repository: mohammaddocker/deployment-monitor-operator
       tag: latest
     imagePullPolicy: IfNotPresent
     args:
