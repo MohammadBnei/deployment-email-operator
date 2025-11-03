@@ -22,26 +22,17 @@ type DeploymentMonitorSpec struct {
 	EmailTemplate string `json:"emailTemplate,omitempty"`
 }
 
-// MonitoredDeploymentStatus defines the status for a single monitored deployment.
-type MonitoredDeploymentStatus struct {
-	// Name of the monitored deployment
-	Name string `json:"name"`
-	// Namespace of the monitored deployment
-	Namespace string `json:"namespace"`
-	// LastNotificationTime is the last time an email was sent for this specific deployment.
+// DeploymentMonitorStatus defines the observed state of DeploymentMonitor
+type DeploymentMonitorStatus struct {
+	// LastNotificationTime is the last time an email was sent for any monitored deployment.
 	// +optional
 	LastNotificationTime *metav1.Time `json:"lastNotificationTime,omitempty"`
 	// LastNotifiedDeploymentHash is the hash of the deployment's state (image, replicas)
-	// when the last notification was sent for this specific deployment.
+	// that triggered the last notification. This is a simplified approach and
+	// assumes a single deployment change at a time or that the hash represents
+	// the aggregate state that triggered the last notification.
 	// +optional
 	LastNotifiedDeploymentHash string `json:"lastNotifiedDeploymentHash,omitempty"`
-}
-
-// DeploymentMonitorStatus defines the observed state of DeploymentMonitor
-type DeploymentMonitorStatus struct {
-	// ObservedDeployments lists the status of each deployment being monitored by this DeploymentMonitor.
-	// +optional
-	ObservedDeployments []MonitoredDeploymentStatus `json:"observedDeployments,omitempty"`
 }
 
 // +kubebuilder:object:root=true

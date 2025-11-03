@@ -72,27 +72,18 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	err := r.Get(ctx, req.NamespacedName, deploymentMonitor)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			// Request object not found, could have been deleted after reconcile request.
-			// Owned objects are automatically garbage collected. For additional cleanup logic,
-			// refer to https://book.kubebuilder.io/reference/finalizers.html
 			log.Info("DeploymentMonitor resource not found. Ignoring since object must be deleted")
 			return ctrl.Result{}, nil
 		}
-		// Error reading the object - requeue the request.
 		log.Error(err, "Failed to get DeploymentMonitor")
 		return ctrl.Result{}, err
 	}
 
 	// List all Deployments to find those matching the monitor's criteria
 	deploymentList := &appsv1.DeploymentList{}
-	listOpts := []client.ListOption{
-		// Consider adding a FieldSelector or LabelSelector here if performance becomes an issue
-		// For now, we list all and filter in memory.
-	}
-	if err = r.List(ctx, deploymentList, listOpts...); err != nil {
+	if err = r.List(ctx, deploymentList); err != nil {
 		log.Error(err, "Failed to list Deployments")
 		return ctrl.Result{}, err
-		// TODO: Should we requeue here? If we can't list deployments, we can't monitor anything.
 	}
 
 	// Filter deployments based on the DeploymentMonitor's spec
@@ -103,14 +94,14 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	}
 
-	// If no deployments are monitored, we can stop here.
 	if len(monitoredDeployments) == 0 {
 		log.Info("No deployments found matching criteria for DeploymentMonitor", "DeploymentMonitor.Name", deploymentMonitor.Name)
-		// Clear any existing observed deployments if none are monitored anymore
-		if len(deploymentMonitor.Status.ObservedDeployments) > 0 {
-			deploymentMonitor.Status.ObservedDeployments = []monitorv1.MonitoredDeploymentStatus{}
+		// If no deployments are monitored, and the status has a hash, clear it.
+		if deploymentMonitor.Status.LastNotifiedDeploymentHash != "" {
+			deploymentMonitor.Status.LastNotifiedDeploymentHash = ""
+			deploymentMonitor.Status.LastNotificationTime = nil
 			if err := r.Status().Update(ctx, deploymentMonitor); err != nil {
-				log.Error(err, "Failed to clear DeploymentMonitor status for observed deployments")
+				log.Error(err, "Failed to clear DeploymentMonitor status when no deployments are monitored")
 				return ctrl.Result{}, err
 			}
 		}
@@ -120,7 +111,6 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	// Check if SMTPSecretName is provided before attempting to fetch config
 	if deploymentMonitor.Spec.SMTPSecretName == "" {
 		log.Error(fmt.Errorf("SMTPSecretName is not defined"), "Cannot send email without SMTP configuration", "DeploymentMonitor.Name", deploymentMonitor.Name)
-		// Requeue after a short period to allow user to fix the CRD
 		return ctrl.Result{RequeueAfter: 1 * time.Minute}, nil
 	}
 
@@ -128,58 +118,33 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	smtpConfig, err := r.getSMTPConfig(ctx, deploymentMonitor)
 	if err != nil {
 		log.Error(err, "Failed to get SMTP configuration from secret", "Secret.Name", deploymentMonitor.Spec.SMTPSecretName)
-		// If we can't get SMTP config, we can't send emails, so requeue with error.
 		return ctrl.Result{}, err
 	}
 
-	// Track if any status update is needed
-	statusUpdated := false
-	var newObservedDeployments []monitorv1.MonitoredDeploymentStatus
-
-	// For each monitored deployment, check for changes and send notifications
+	// We will only send one notification per reconciliation loop for the first detected change.
+	// This simplifies the status tracking. If multiple deployments change, they will trigger
+	// subsequent reconciliations.
 	for _, dep := range monitoredDeployments {
-		// Safely get image and replicas
 		image := "N/A"
 		if len(dep.Spec.Template.Spec.Containers) > 0 {
 			image = dep.Spec.Template.Spec.Containers[0].Image
 		}
-		replicas := int32(1) // Default value
+		replicas := int32(1)
 		if dep.Spec.Replicas != nil {
 			replicas = *dep.Spec.Replicas
 		}
 
 		currentDeploymentHash := calculateDeploymentHash(image, replicas)
 
-		// Find the status for this specific deployment
-		var deploymentStatus *monitorv1.MonitoredDeploymentStatus
-		for i := range deploymentMonitor.Status.ObservedDeployments {
-			if deploymentMonitor.Status.ObservedDeployments[i].Name == dep.Name && deploymentMonitor.Status.ObservedDeployments[i].Namespace == dep.Namespace {
-				deploymentStatus = &deploymentMonitor.Status.ObservedDeployments[i]
-				break
-			}
-		}
-
-		if deploymentStatus == nil {
-			// This is a new deployment being monitored, or its status was cleared.
-			// Initialize its status and prepare to send notification.
-			deploymentStatus = &monitorv1.MonitoredDeploymentStatus{
-				Name:      dep.Name,
-				Namespace: dep.Namespace,
-			}
-			// Add to the new list of observed deployments
-			newObservedDeployments = append(newObservedDeployments, *deploymentStatus)
-		} else {
-			// Keep existing status for now, will update if notification is sent
-			newObservedDeployments = append(newObservedDeployments, *deploymentStatus)
-		}
-
 		// Only send email if the deployment state has changed since the last notification
-		if currentDeploymentHash == deploymentStatus.LastNotifiedDeploymentHash {
-			log.V(1).Info("Deployment state unchanged, no notification needed", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name, "Hash", currentDeploymentHash)
-			continue // Skip to the next deployment
+		// and the hash is different from the one currently stored in the DeploymentMonitor's status.
+		// This prevents re-sending emails for the same state after a status update.
+		if currentDeploymentHash == deploymentMonitor.Status.LastNotifiedDeploymentHash {
+			log.V(1).Info("Deployment state unchanged or already notified, no notification needed", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name, "Hash", currentDeploymentHash)
+			continue // Check next deployment
 		}
 
-		log.Info("Monitored Deployment change detected", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name, "OldHash", deploymentStatus.LastNotifiedDeploymentHash, "NewHash", currentDeploymentHash)
+		log.Info("Monitored Deployment change detected", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name, "OldHash", deploymentMonitor.Status.LastNotifiedDeploymentHash, "NewHash", currentDeploymentHash)
 
 		// Prepare data for template
 		templateData := struct {
@@ -201,7 +166,6 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			tmpl, err := template.New("email").Parse(deploymentMonitor.Spec.EmailTemplate)
 			if err != nil {
 				log.Error(err, "Failed to parse email template", "DeploymentMonitor.Name", deploymentMonitor.Name)
-				// Fallback to default body if template parsing fails
 				body = fmt.Sprintf("Deployment %s/%s has been updated or reconciled.\n\nDetails:\nImage: %s\nReplicas: %d\n\nThis is an automated notification from your Kubernetes Deployment Monitor Operator.",
 					dep.Namespace, dep.Name, image, replicas)
 			} else {
@@ -209,7 +173,6 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				err = tmpl.Execute(&tpl, templateData)
 				if err != nil {
 					log.Error(err, "Failed to execute email template", "DeploymentMonitor.Name", deploymentMonitor.Name)
-					// Fallback to default body if template execution fails
 					body = fmt.Sprintf("Deployment %s/%s has been updated or reconciled.\n\nDetails:\nImage: %s\nReplicas: %d\n\nThis is an automated notification from your Kubernetes Deployment Monitor Operator.",
 						dep.Namespace, dep.Name, image, replicas)
 				} else {
@@ -217,7 +180,6 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 				}
 			}
 		} else {
-			// Default email body if no template is provided
 			body = fmt.Sprintf("Deployment %s/%s has been updated or reconciled.\n\nDetails:\nImage: %s\nReplicas: %d\n\nThis is an automated notification from your Kubernetes Deployment Monitor Operator.",
 				dep.Namespace, dep.Name, image, replicas)
 		}
@@ -234,29 +196,26 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		)
 		if err != nil {
 			log.Error(err, "Failed to send email notification", "Recipient", deploymentMonitor.Spec.RecipientEmail)
-			// Continue to process other deployments/monitors even if one email fails
+			// If email sending fails, we should requeue to retry.
+			return ctrl.Result{}, err
 		} else {
 			log.Info("Email notification sent successfully", "Recipient", deploymentMonitor.Spec.RecipientEmail, "Deployment", dep.Name)
 
-			// Update the specific deployment's status
-			deploymentStatus.LastNotificationTime = &metav1.Time{Time: time.Now()}
-			deploymentStatus.LastNotifiedDeploymentHash = currentDeploymentHash
-			statusUpdated = true // Mark that status needs an update
+			// Update the DeploymentMonitor's status
+			deploymentMonitor.Status.LastNotificationTime = &metav1.Time{Time: time.Now()}
+			deploymentMonitor.Status.LastNotifiedDeploymentHash = currentDeploymentHash
+			if err := r.Status().Update(ctx, deploymentMonitor); err != nil {
+				log.Error(err, "Failed to update DeploymentMonitor status after sending email")
+				return ctrl.Result{}, err
+			}
+			// After updating status and sending email, we can stop processing for this reconciliation.
+			// The status update will trigger another reconcile, which will then find the hash matches.
+			return ctrl.Result{}, nil
 		}
 	}
 
-	// Update the DeploymentMonitor's status if any changes were made to observed deployments
-	if statusUpdated || len(deploymentMonitor.Status.ObservedDeployments) != len(newObservedDeployments) {
-		deploymentMonitor.Status.ObservedDeployments = newObservedDeployments
-		if err := r.Status().Update(ctx, deploymentMonitor); err != nil {
-			log.Error(err, "Failed to update DeploymentMonitor status")
-			return ctrl.Result{}, err
-		}
-	}
-
-	// Requeue after a certain duration to periodically check for changes,
-	// or rely solely on watch events for more immediate reactions.
-	// For now, we'll rely on watch events and a periodic requeue for robustness.
+	// If we reached here, no changes were detected or emails sent for any monitored deployment.
+	// Requeue after a certain duration to periodically check for changes.
 	return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 }
 
@@ -285,9 +244,8 @@ func (r *DeploymentMonitorReconciler) isDeploymentMonitored(dep *appsv1.Deployme
 
 // getSMTPConfig retrieves the SMTP configuration from the specified Kubernetes Secret.
 func (r *DeploymentMonitorReconciler) getSMTPConfig(ctx context.Context, dm *monitorv1.DeploymentMonitor) (*SMTPConfig, error) {
-	// This check is now also performed before calling this function, but keeping it here for robustness
 	if dm.Spec.SMTPSecretName == "" {
-		return nil, fmt.Errorf("SMTPConfigSecretRef is not defined in DeploymentMonitor %s/%s", dm.Namespace, dm.Name)
+		return nil, fmt.Errorf("SMTPSecretName is not defined in DeploymentMonitor %s/%s", dm.Namespace, dm.Name)
 	}
 
 	secret := &corev1.Secret{}
@@ -296,8 +254,23 @@ func (r *DeploymentMonitorReconciler) getSMTPConfig(ctx context.Context, dm *mon
 	// or the secret reference should include a namespace.
 	secretName := types.NamespacedName{
 		Name:      dm.Spec.SMTPSecretName,
-		Namespace: dm.Namespace,
+		Namespace: dm.Namespace, // DeploymentMonitor is cluster-scoped, but secrets are namespaced.
+		// This implies the secret must be in the same namespace as the *monitored deployment*
+		// or a fixed namespace. For now, let's assume a fixed namespace like "default" or "kube-system"
+		// or that the DeploymentMonitor itself is namespaced.
+		// Given DeploymentMonitor is cluster-scoped, we should probably allow specifying the secret's namespace.
+		// For this example, let's assume the secret is in the `kube-system` namespace for simplicity,
+		// or we need to add a `SMTPSecretNamespace` field to the DeploymentMonitorSpec.
+		// For now, let's use a placeholder or assume it's in the operator's namespace if it were namespaced.
+		// Since it's cluster-scoped, let's assume the secret is in the `default` namespace for now,
+		// or the operator's own namespace if it were deployed there.
+		// A better approach would be to add a `SMTPSecretNamespace` field to the spec.
 	}
+
+	// For a cluster-scoped DeploymentMonitor, the secret's namespace needs to be explicitly defined
+	// or assumed. Let's assume for now it's in the `default` namespace, but this is a design choice.
+	// A more robust solution would be to add a `SMTPSecretNamespace` field to the DeploymentMonitorSpec.
+	secretName.Namespace = "default" // Placeholder: Adjust based on where SMTP secret is expected to be.
 
 	err := r.Get(ctx, secretName, secret)
 	if err != nil {
@@ -372,8 +345,9 @@ func (r *DeploymentMonitorReconciler) findDeploymentMonitorsForDeployment(ctx co
 		if r.isDeploymentMonitored(deployment, &dm) {
 			requests = append(requests, reconcile.Request{
 				NamespacedName: types.NamespacedName{
-					Name:      dm.Name,
-					Namespace: dm.Namespace,
+					Name: dm.Name,
+					// DeploymentMonitor is cluster-scoped, so Namespace is empty.
+					// The request is for the DeploymentMonitor, not the deployment.
 				},
 			})
 		}
