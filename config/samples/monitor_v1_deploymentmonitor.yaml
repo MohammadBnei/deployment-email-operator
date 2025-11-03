@@ -29,7 +29,7 @@ spec:
     Image: {{.Image}}
     Replicas: {{.Replicas}}
 
-    The deployment {{.DeploymentName}} in namespace {{.Namespace}} has been updated or reconciled.
+    The deployment {{.Name}} in namespace {{.Namespace}} has been updated or reconciled.
 
     Best regards,
     Your Kubernetes Deployment Monitor
