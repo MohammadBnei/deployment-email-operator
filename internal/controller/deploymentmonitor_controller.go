@@ -267,11 +267,6 @@ func (r *DeploymentMonitorReconciler) getSMTPConfig(ctx context.Context, dm *mon
 		// A better approach would be to add a `SMTPSecretNamespace` field to the spec.
 	}
 
-	// For a cluster-scoped DeploymentMonitor, the secret's namespace needs to be explicitly defined
-	// or assumed. Let's assume for now it's in the `default` namespace, but this is a design choice.
-	// A more robust solution would be to add a `SMTPSecretNamespace` field to the DeploymentMonitorSpec.
-	secretName.Namespace = "default" // Placeholder: Adjust based on where SMTP secret is expected to be.
-
 	err := r.Get(ctx, secretName, secret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get secret %s/%s: %w", secretName.Namespace, secretName.Name, err)
