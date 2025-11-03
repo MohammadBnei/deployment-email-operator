@@ -215,26 +215,26 @@ func (r *DeploymentMonitorReconciler) getSMTPConfig(ctx context.Context, dm *mon
 		return nil, fmt.Errorf("failed to get secret %s/%s: %w", secretName.Namespace, secretName.Name, err)
 	}
 
-	smtpServer, ok := secret.Data["smtpServer"]
+	smtpServer, ok := secret.Data["SMTP_SERVER"]
 	if !ok {
-		return nil, fmt.Errorf("key 'smtpServer' not found in secret %s/%s", secretName.Namespace, secretName.Name)
+		return nil, fmt.Errorf("key 'SMTP_SERVER' not found in secret %s/%s", secretName.Namespace, secretName.Name)
 	}
-	smtpPortStr, ok := secret.Data["smtpPort"]
+	smtpPortStr, ok := secret.Data["SMTP_PORT"]
 	if !ok {
-		return nil, fmt.Errorf("key 'smtpPort' not found in secret %s/%s", secretName.Namespace, secretName.Name)
+		return nil, fmt.Errorf("key 'SMTP_PORT' not found in secret %s/%s", secretName.Namespace, secretName.Name)
 	}
-	smtpUsername, ok := secret.Data["smtpUsername"]
+	smtpUsername, ok := secret.Data["SMTP_USERNAME"]
 	if !ok {
-		return nil, fmt.Errorf("key 'smtpUsername' not found in secret %s/%s", secretName.Namespace, secretName.Name)
+		return nil, fmt.Errorf("key 'SMTP_USERNAME' not found in secret %s/%s", secretName.Namespace, secretName.Name)
 	}
-	smtpPassword, ok := secret.Data["smtpPassword"]
+	smtpPassword, ok := secret.Data["SMTP_PASSWORD"]
 	if !ok {
-		return nil, fmt.Errorf("key 'smtpPassword' not found in secret %s/%s", secretName.Namespace, secretName.Name)
+		return nil, fmt.Errorf("key 'SMTP_PASSWORD' not found in secret %s/%s", secretName.Namespace, secretName.Name)
 	}
 
 	port, err := strconv.Atoi(string(smtpPortStr))
 	if err != nil {
-		return nil, fmt.Errorf("invalid smtpPort value in secret %s/%s: %w", secretName.Namespace, secretName.Name, err)
+		return nil, fmt.Errorf("invalid SMTP_PORT value in secret %s/%s: %w", secretName.Namespace, secretName.Name, err)
 	}
 
 	return &SMTPConfig{
