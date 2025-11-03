@@ -106,10 +106,18 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	// If no deployments are monitored, we can stop here.
 	if len(monitoredDeployments) == 0 {
 		log.Info("No deployments found matching criteria for DeploymentMonitor", "DeploymentMonitor.Name", deploymentMonitor.Name)
+		// Clear any existing observed deployments if none are monitored anymore
+		if len(deploymentMonitor.Status.ObservedDeployments) > 0 {
+			deploymentMonitor.Status.ObservedDeployments = []monitorv1.MonitoredDeploymentStatus{}
+			if err := r.Status().Update(ctx, deploymentMonitor); err != nil {
+				log.Error(err, "Failed to clear DeploymentMonitor status for observed deployments")
+				return ctrl.Result{}, err
+			}
+		}
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
-	// Check if SMTPConfigSecretRef is provided before attempting to fetch config
+	// Check if SMTPSecretName is provided before attempting to fetch config
 	if deploymentMonitor.Spec.SMTPSecretName == "" {
 		log.Error(fmt.Errorf("SMTPSecretName is not defined"), "Cannot send email without SMTP configuration", "DeploymentMonitor.Name", deploymentMonitor.Name)
 		// Requeue after a short period to allow user to fix the CRD
@@ -123,6 +131,10 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		// If we can't get SMTP config, we can't send emails, so requeue with error.
 		return ctrl.Result{}, err
 	}
+
+	// Track if any status update is needed
+	statusUpdated := false
+	var newObservedDeployments []monitorv1.MonitoredDeploymentStatus
 
 	// For each monitored deployment, check for changes and send notifications
 	for _, dep := range monitoredDeployments {
@@ -138,13 +150,36 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 
 		currentDeploymentHash := calculateDeploymentHash(image, replicas)
 
+		// Find the status for this specific deployment
+		var deploymentStatus *monitorv1.MonitoredDeploymentStatus
+		for i := range deploymentMonitor.Status.ObservedDeployments {
+			if deploymentMonitor.Status.ObservedDeployments[i].Name == dep.Name && deploymentMonitor.Status.ObservedDeployments[i].Namespace == dep.Namespace {
+				deploymentStatus = &deploymentMonitor.Status.ObservedDeployments[i]
+				break
+			}
+		}
+
+		if deploymentStatus == nil {
+			// This is a new deployment being monitored, or its status was cleared.
+			// Initialize its status and prepare to send notification.
+			deploymentStatus = &monitorv1.MonitoredDeploymentStatus{
+				Name:      dep.Name,
+				Namespace: dep.Namespace,
+			}
+			// Add to the new list of observed deployments
+			newObservedDeployments = append(newObservedDeployments, *deploymentStatus)
+		} else {
+			// Keep existing status for now, will update if notification is sent
+			newObservedDeployments = append(newObservedDeployments, *deploymentStatus)
+		}
+
 		// Only send email if the deployment state has changed since the last notification
-		if currentDeploymentHash == deploymentMonitor.Status.LastNotifiedDeploymentHash {
+		if currentDeploymentHash == deploymentStatus.LastNotifiedDeploymentHash {
 			log.V(1).Info("Deployment state unchanged, no notification needed", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name, "Hash", currentDeploymentHash)
 			continue // Skip to the next deployment
 		}
 
-		log.Info("Monitored Deployment change detected", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name, "OldHash", deploymentMonitor.Status.LastNotifiedDeploymentHash, "NewHash", currentDeploymentHash)
+		log.Info("Monitored Deployment change detected", "Deployment.Namespace", dep.Namespace, "Deployment.Name", dep.Name, "OldHash", deploymentStatus.LastNotifiedDeploymentHash, "NewHash", currentDeploymentHash)
 
 		// Prepare data for template
 		templateData := struct {
@@ -203,13 +238,19 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		} else {
 			log.Info("Email notification sent successfully", "Recipient", deploymentMonitor.Spec.RecipientEmail, "Deployment", dep.Name)
 
-			// Update status to record last notification time and deployment hash
-			deploymentMonitor.Status.LastNotificationTime = &metav1.Time{Time: time.Now()}
-			deploymentMonitor.Status.LastNotifiedDeploymentHash = currentDeploymentHash
-			if err := r.Status().Update(ctx, deploymentMonitor); err != nil {
-				log.Error(err, "Failed to update DeploymentMonitor status")
-				return ctrl.Result{}, err
-			}
+			// Update the specific deployment's status
+			deploymentStatus.LastNotificationTime = &metav1.Time{Time: time.Now()}
+			deploymentStatus.LastNotifiedDeploymentHash = currentDeploymentHash
+			statusUpdated = true // Mark that status needs an update
+		}
+	}
+
+	// Update the DeploymentMonitor's status if any changes were made to observed deployments
+	if statusUpdated || len(deploymentMonitor.Status.ObservedDeployments) != len(newObservedDeployments) {
+		deploymentMonitor.Status.ObservedDeployments = newObservedDeployments
+		if err := r.Status().Update(ctx, deploymentMonitor); err != nil {
+			log.Error(err, "Failed to update DeploymentMonitor status")
+			return ctrl.Result{}, err
 		}
 	}
 
