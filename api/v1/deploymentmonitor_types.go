@@ -26,6 +26,7 @@ type DeploymentMonitorStatus struct {
 
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
+// +kubebuilder:resource:scope=Cluster
 
 // DeploymentMonitor is the Schema for the deploymentmonitors API
 type DeploymentMonitor struct {

@@ -51,9 +51,9 @@ type DeploymentMonitorReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-// +kubebuilder:rbac:groups=monitor.example.com,resources=deploymentmonitors,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=monitor.example.com,resources=deploymentmonitors/status,verbs=get;update;patch
-// +kubebuilder:rbac:groups=monitor.example.com,resources=deploymentmonitors/finalizers,verbs=update
+// +kubebuilder:rbac:groups=monitor.bnei.dev,resources=deploymentmonitors,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=monitor.bnei.dev,resources=deploymentmonitors/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=monitor.bnei.dev,resources=deploymentmonitors/finalizers,verbs=update
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
 

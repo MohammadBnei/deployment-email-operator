@@ -21,7 +21,7 @@ rules:
   - list
   - watch
 - apiGroups:
-  - monitor.example.com
+  - monitor.bnei.dev
   resources:
   - deploymentmonitors
   verbs:
@@ -33,13 +33,13 @@ rules:
   - update
   - watch
 - apiGroups:
-  - monitor.example.com
+  - monitor.bnei.dev
   resources:
   - deploymentmonitors/finalizers
   verbs:
   - update
 - apiGroups:
-  - monitor.example.com
+  - monitor.bnei.dev
   resources:
   - deploymentmonitors/status
   verbs:

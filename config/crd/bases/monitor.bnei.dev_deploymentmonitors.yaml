@@ -12,7 +12,7 @@ spec:
     listKind: DeploymentMonitorList
     plural: deploymentmonitors
     singular: deploymentmonitor
-  scope: Namespaced
+  scope: Cluster
   versions:
   - name: v1
     schema:
