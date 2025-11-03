@@ -17,10 +17,12 @@ limitations under the License.
 package controller
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/smtp"
 	"strconv"
+	"text/template"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -139,10 +141,46 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			replicas = *dep.Spec.Replicas
 		}
 
-		// Construct email content
+		// Prepare data for template
+		templateData := struct {
+			Namespace string
+			Name      string
+			Image     string
+			Replicas  int32
+		}{
+			Namespace: dep.Namespace,
+			Name:      dep.Name,
+			Image:     image,
+			Replicas:  replicas,
+		}
+
 		subject := fmt.Sprintf("Deployment Change Alert: %s/%s", dep.Namespace, dep.Name)
-		body := fmt.Sprintf("Deployment %s/%s has been updated or reconciled.\n\nDetails:\nImage: %s\nReplicas: %d\n\nThis is an automated notification from your Kubernetes Deployment Monitor Operator.",
-			dep.Namespace, dep.Name, image, replicas)
+		var body string
+
+		if deploymentMonitor.Spec.EmailTemplate != "" {
+			tmpl, err := template.New("email").Parse(deploymentMonitor.Spec.EmailTemplate)
+			if err != nil {
+				log.Error(err, "Failed to parse email template", "DeploymentMonitor.Name", deploymentMonitor.Name)
+				// Fallback to default body if template parsing fails
+				body = fmt.Sprintf("Deployment %s/%s has been updated or reconciled.\n\nDetails:\nImage: %s\nReplicas: %d\n\nThis is an automated notification from your Kubernetes Deployment Monitor Operator.",
+					dep.Namespace, dep.Name, image, replicas)
+			} else {
+				var tpl bytes.Buffer
+				err = tmpl.Execute(&tpl, templateData)
+				if err != nil {
+					log.Error(err, "Failed to execute email template", "DeploymentMonitor.Name", deploymentMonitor.Name)
+					// Fallback to default body if template execution fails
+					body = fmt.Sprintf("Deployment %s/%s has been updated or reconciled.\n\nDetails:\nImage: %s\nReplicas: %d\n\nThis is an automated notification from your Kubernetes Deployment Monitor Operator.",
+						dep.Namespace, dep.Name, image, replicas)
+				} else {
+					body = tpl.String()
+				}
+			}
+		} else {
+			// Default email body if no template is provided
+			body = fmt.Sprintf("Deployment %s/%s has been updated or reconciled.\n\nDetails:\nImage: %s\nReplicas: %d\n\nThis is an automated notification from your Kubernetes Deployment Monitor Operator.",
+				dep.Namespace, dep.Name, image, replicas)
+		}
 
 		// Send email
 		err = SendEmail(

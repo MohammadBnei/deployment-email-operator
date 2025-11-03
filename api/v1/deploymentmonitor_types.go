@@ -13,6 +13,13 @@ type DeploymentMonitorSpec struct {
 	MonitoredLabelValue      string `json:"monitoredLabelValue,omitempty"`
 	RecipientEmail           string `json:"recipientEmail"`
 	SMTPSecretName           string `json:"smtpSecretName,omitempty"`
+	// EmailTemplate is an optional Go template string for the email body.
+	// If provided, it will be used to format the email content.
+	// The template will receive a data structure with fields:
+	// .Namespace, .Name, .Image, .Replicas.
+	// Example: "Deployment {{.Namespace}}/{{.Name}} updated. Image: {{.Image}}, Replicas: {{.Replicas}}"
+	// +optional
+	EmailTemplate string `json:"emailTemplate,omitempty"`
 }
 
 // DeploymentMonitorStatus defines the observed state of DeploymentMonitor
