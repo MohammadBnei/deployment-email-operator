@@ -45,6 +45,14 @@ spec:
           spec:
             description: DeploymentMonitorSpec defines the desired state of DeploymentMonitor
             properties:
+              emailTemplate:
+                description: |-
+                  EmailTemplate is an optional Go template string for the email body.
+                  If provided, it will be used to format the email content.
+                  The template will receive a data structure with fields:
+                  .Namespace, .Name, .Image, .Replicas.
+                  Example: "Deployment {{.Namespace}}/{{.Name}} updated. Image: {{.Image}}, Replicas: {{.Replicas}}"
+                type: string
               monitoredAnnotationKey:
                 type: string
               monitoredAnnotationValue:

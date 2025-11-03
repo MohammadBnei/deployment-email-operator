@@ -14,16 +14,17 @@ spec:
   # monitoredLabelValue: "frontend"
   recipientEmail: "mohammad@bnei.dev" # Replace with the email address to send notifications
   smtpSecretName: "namespace/my-smtp-config-secret" # Name of the Secret containing SMTP configuration
-    # The 'key' field is optional here. If omitted, the controller expects
-    # 'smtpServer', 'smtpPort', 'smtpUsername', 'smtpPassword' keys in the secret.
+  # The template will receive a data structure with fields:
+	# .Namespace, .Name, .Image, .Replicas.
+	# Example: "Deployment {{.Namespace}}/{{.Name}} updated. Image: {{.Image}}, Replicas: {{.Replicas}}"
   emailTemplate: |
-    Subject: Deployment Update: {{.DeploymentName}} in {{.Namespace}}
+    Subject: Deployment Update: {{.Name}} in {{.Namespace}}
 
     Hello,
 
     This is an automated notification regarding a deployment update.
 
-    Deployment: {{.DeploymentName}}
+    Deployment: {{.Name}}
     Namespace: {{.Namespace}}
     Image: {{.Image}}
     Replicas: {{.Replicas}}
