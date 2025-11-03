@@ -40,8 +40,9 @@ controllerManager:
       type: RuntimeDefault
   terminationGracePeriodSeconds: 10
   serviceAccountName: deployment-email-operator-controller-manager
+  # Annotations for the Deployment metadata
   annotations:
-    - secrets.infisical.com/auto-reload: "true"
+    secrets.infisical.com/auto-reload: "true"
 
 # [RBAC]: To enable RBAC (Permissions) configurations
 rbac:
