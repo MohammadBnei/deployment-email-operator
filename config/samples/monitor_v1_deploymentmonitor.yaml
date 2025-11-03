@@ -16,3 +16,19 @@ spec:
   smtpSecretName: "namespace/my-smtp-config-secret" # Name of the Secret containing SMTP configuration
     # The 'key' field is optional here. If omitted, the controller expects
     # 'smtpServer', 'smtpPort', 'smtpUsername', 'smtpPassword' keys in the secret.
+  emailTemplate: |
+    Subject: Deployment Update: {{.DeploymentName}} in {{.Namespace}}
+
+    Hello,
+
+    This is an automated notification regarding a deployment update.
+
+    Deployment: {{.DeploymentName}}
+    Namespace: {{.Namespace}}
+    Image: {{.Image}}
+    Replicas: {{.Replicas}}
+
+    The deployment {{.DeploymentName}} in namespace {{.Namespace}} has been updated or reconciled.
+
+    Best regards,
+    Your Kubernetes Deployment Monitor
