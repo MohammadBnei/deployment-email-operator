@@ -29,7 +29,4 @@ WORKDIR /app
 COPY --from=builder /workspace/manager .
 USER 65532:65532
 
-# Set specific permissions for the binary
-RUN chmod 755 /app/manager
-
 ENTRYPOINT ["/app/manager"]
