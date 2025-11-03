@@ -5,7 +5,11 @@ on:
     branches:
       - main
     paths:
-      - "back/**.go"
+      - "**.go"
+      - "**.yml"
+      - "**.yaml"
+      - "!package.json"
+      - "!CHANGELOG.md"
     tags-ignore:
       - "*"
   workflow_dispatch:
