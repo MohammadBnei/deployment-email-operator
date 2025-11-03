@@ -104,6 +104,13 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil
 	}
 
+	// Check if SMTPConfigSecretRef is provided before attempting to fetch config
+	if deploymentMonitor.Spec.SMTPConfigSecretRef == nil {
+		log.Error(fmt.Errorf("SMTPConfigSecretRef is not defined"), "Cannot send email without SMTP configuration", "DeploymentMonitor.Name", deploymentMonitor.Name)
+		// Requeue after a short period to allow user to fix the CRD
+		return ctrl.Result{RequeueAfter: 1 * time.Minute}, nil
+	}
+
 	// Fetch SMTP configuration from Secret
 	smtpConfig, err := r.getSMTPConfig(ctx, deploymentMonitor)
 	if err != nil {
@@ -192,6 +199,7 @@ func (r *DeploymentMonitorReconciler) isDeploymentMonitored(dep *appsv1.Deployme
 
 // getSMTPConfig retrieves the SMTP configuration from the specified Kubernetes Secret.
 func (r *DeploymentMonitorReconciler) getSMTPConfig(ctx context.Context, dm *monitorv1.DeploymentMonitor) (*SMTPConfig, error) {
+	// This check is now also performed before calling this function, but keeping it here for robustness
 	if dm.Spec.SMTPConfigSecretRef == nil {
 		return nil, fmt.Errorf("SMTPConfigSecretRef is not defined in DeploymentMonitor %s/%s", dm.Namespace, dm.Name)
 	}
