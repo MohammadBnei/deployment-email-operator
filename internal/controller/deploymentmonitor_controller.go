@@ -39,10 +39,10 @@ import (
 
 // SMTPConfig holds the SMTP server configuration
 type SMTPConfig struct {
-	Server   string
-	Port     int
-	Username string
-	Password string
+	Server   string `json:"SMTP_SERVER"`
+	Port     int    `json:"SMTP_PORT"`
+	Username string `json:"SMTP_USERNAME"`
+	Password string `json:"SMTP_PASSWORD"`
 }
 
 // DeploymentMonitorReconciler reconciles a DeploymentMonitor object
