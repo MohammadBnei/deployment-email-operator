@@ -27,11 +27,9 @@ FROM gcr.io/distroless/static:nonroot
 
 WORKDIR /app
 
-# Create the user and group first
-RUN groupadd -r appgroup && useradd -r -g appgroup -d /app -s /sbin/nologin appuser
-
 # Copy binary and change ownership
-COPY --chown=appuser:appgroup --from=builder /workspace/manager .
-USER appuser:appgroup
+COPY --chown=65532:65532 --from=builder /workspace/manager .
+
+USER 65532:65532
 
 ENTRYPOINT ["/app/manager"]
