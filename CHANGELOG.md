@@ -1,5 +1,12 @@
 # Changelog
 
+# [0.8.0](https://github.com/MohammadBnei/deployment-email-operator/compare/back-0.7.0...back-0.8.0) (2025-11-03)
+
+
+### Bug Fixes
+
+* Correctly apply annotations to Deployment metadata ([019097f](https://github.com/MohammadBnei/deployment-email-operator/commit/019097f50b89b38aeb7cd1c35e4320914e23567a))
+
 # [0.7.0](https://github.com/MohammadBnei/deployment-email-operator/compare/back-0.6.0...back-0.7.0) (2025-11-03)
 
 # [0.6.0](https://github.com/MohammadBnei/deployment-email-operator/compare/back-0.5.0...back-0.6.0) (2025-11-03)
