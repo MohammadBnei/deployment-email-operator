@@ -3,6 +3,10 @@ kind: Deployment
 metadata:
   name: deployment-email-operator-controller-manager
   namespace: {{ .Release.Namespace }}
+  {{- if .Values.controllerManager.annotations  }}
+  annotations:
+    {{- include ".Values.controllerManager.annotations" . | nindent 4 }}
+  {{- end }}
   labels:
     {{- include "chart.labels" . | nindent 4 }}
     control-plane: controller-manager
