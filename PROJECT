@@ -7,6 +7,7 @@ domain: my.domain
 layout:
 - go.kubebuilder.io/v4
 plugins:
+  autoupdate.kubebuilder.io/v1-alpha: {}
   helm.kubebuilder.io/v1-alpha: {}
 projectName: deployment-email-operator
 repo: deployment-email-operator
