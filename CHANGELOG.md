@@ -1,5 +1,7 @@
 # Changelog
 
+# [0.12.0](https://github.com/MohammadBnei/deployment-email-operator/compare/back-0.11.0...back-0.12.0) (2025-11-03)
+
 # [0.11.0](https://github.com/MohammadBnei/deployment-email-operator/compare/back-0.10.0...back-0.11.0) (2025-11-03)
 
 # [0.10.0](https://github.com/MohammadBnei/deployment-email-operator/compare/back-0.9.0...back-0.10.0) (2025-11-03)
