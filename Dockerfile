@@ -26,7 +26,12 @@ RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o ma
 FROM gcr.io/distroless/static:nonroot
 
 WORKDIR /app
-COPY --from=builder /workspace/manager .
-USER 65532:65532
+
+# Create the user and group first
+RUN groupadd -r appgroup && useradd -r -g appgroup -d /app -s /sbin/nologin appuser
+
+# Copy binary and change ownership
+COPY --chown=appuser:appgroup --from=builder /workspace/manager .
+USER appuser:appgroup
 
 ENTRYPOINT ["/app/manager"]
