@@ -23,9 +23,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/smtp"
-	"sort" // Added for consistent hashing of multiple deployments
+	"sort"
 	"strconv"
-	"strings" // Added for consistent hashing of multiple deployments
+	"strings"
 	"text/template"
 	"time"
 
@@ -81,14 +81,28 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, err
 	}
 
-	// List all Deployments to find those matching the monitor's criteria
+	// Prepare list options for deployments
+	listOpts := []client.ListOption{}
+
+	// If a specific label key and value are provided, use client.MatchingLabels for server-side filtering
+	if deploymentMonitor.Spec.MonitoredLabelKey != "" && deploymentMonitor.Spec.MonitoredLabelValue != "" {
+		listOpts = append(listOpts, client.MatchingLabels{
+			deploymentMonitor.Spec.MonitoredLabelKey: deploymentMonitor.Spec.MonitoredLabelValue,
+		})
+	} else if deploymentMonitor.Spec.MonitoredLabelKey != "" && deploymentMonitor.Spec.MonitoredLabelValue == "" {
+		// If only key is provided, we need to filter in-code as MatchingLabels requires a value.
+		// For now, we'll list all and filter later.
+		log.V(1).Info("MonitoredLabelKey provided without MonitoredLabelValue, will filter in-code", "key", deploymentMonitor.Spec.MonitoredLabelKey)
+	}
+
+	// List Deployments based on the prepared options
 	deploymentList := &appsv1.DeploymentList{}
-	if err = r.List(ctx, deploymentList); err != nil {
-		log.Error(err, "Failed to list Deployments")
+	if err = r.List(ctx, deploymentList, listOpts...); err != nil {
+		log.Error(err, "Failed to list Deployments with filters")
 		return ctrl.Result{}, err
 	}
 
-	// Filter deployments based on the DeploymentMonitor's spec
+	// Filter deployments further based on the DeploymentMonitor's spec (for annotations or label key without value)
 	monitoredDeployments := []appsv1.Deployment{}
 	for _, dep := range deploymentList.Items {
 		if r.isDeploymentMonitored(&dep, deploymentMonitor) {
@@ -235,7 +249,10 @@ func (r *DeploymentMonitorReconciler) isDeploymentMonitored(dep *appsv1.Deployme
 		}
 	}
 
-	// Check for label match
+	// Check for label match.
+	// This check is still needed even if client.MatchingLabels was used,
+	// because client.MatchingLabels only applies if both key and value are non-empty.
+	// If only MonitoredLabelKey is set (value is empty), we need to check for key existence here.
 	if dm.Spec.MonitoredLabelKey != "" {
 		if val, ok := dep.Labels[dm.Spec.MonitoredLabelKey]; ok {
 			if dm.Spec.MonitoredLabelValue == "" || val == dm.Spec.MonitoredLabelValue {
