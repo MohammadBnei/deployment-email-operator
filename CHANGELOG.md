@@ -1,5 +1,18 @@
 # Changelog
 
+# [0.24.0](https://github.com/MohammadBnei/deployment-email-operator/compare/back-0.23.0...back-0.24.0) (2025-11-04)
+
+
+### Bug Fixes
+
+* Refactor reconciliation to batch notifications and prevent infinite loops ([4a1e43f](https://github.com/MohammadBnei/deployment-email-operator/commit/4a1e43fe1793a99fe6f47ea1addc376406be1382))
+
+
+### Features
+
+* Implement server-side label filtering for deployments ([627739c](https://github.com/MohammadBnei/deployment-email-operator/commit/627739c86913336f73cb31e424573972ef62d8b1))
+* Track and alert on changes for multiple deployments individually ([a861e50](https://github.com/MohammadBnei/deployment-email-operator/commit/a861e502b93855ab6721f09169bc402e59d12b74))
+
 # [0.23.0](https://github.com/MohammadBnei/deployment-email-operator/compare/back-0.22.0...back-0.23.0) (2025-11-03)
 
 # [0.22.0](https://github.com/MohammadBnei/deployment-email-operator/compare/back-0.21.0...back-0.22.0) (2025-11-03)
