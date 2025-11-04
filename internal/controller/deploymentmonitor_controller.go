@@ -156,7 +156,7 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			log.Error(err, "Failed to update DeploymentMonitor status after cleanup or no changes")
 			return ctrl.Result{}, err
 		}
-		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil // Requeue to check periodically
+		return ctrl.Result{}, nil
 	}
 
 	log.Info("Changes detected for monitored Deployment(s)", "DeploymentMonitor.Name", deploymentMonitor.Name, "ChangedCount", len(changedDeployments))
@@ -299,7 +299,6 @@ func (r *DeploymentMonitorReconciler) getSMTPConfig(ctx context.Context, dm *mon
 	// A more robust solution would be to add a `SMTPSecretNamespace` field to the DeploymentMonitorSpec.
 	secretName := types.NamespacedName{
 		Name:      dm.Spec.SMTPSecretName,
-		Namespace: "default", // Placeholder: Consider adding SMTPSecretNamespace to DeploymentMonitorSpec
 	}
 
 	err := r.Get(ctx, secretName, secret)
