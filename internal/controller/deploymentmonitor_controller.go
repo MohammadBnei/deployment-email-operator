@@ -198,20 +198,20 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 			log.Error(err, "Failed to send email notification", "Recipient", deploymentMonitor.Spec.RecipientEmail)
 			// If email sending fails, we should requeue to retry.
 			return ctrl.Result{}, err
-		} else {
-			log.Info("Email notification sent successfully", "Recipient", deploymentMonitor.Spec.RecipientEmail, "Deployment", dep.Name)
-
-			// Update the DeploymentMonitor's status
-			deploymentMonitor.Status.LastNotificationTime = &metav1.Time{Time: time.Now()}
-			deploymentMonitor.Status.LastNotifiedDeploymentHash = currentDeploymentHash
-			if err := r.Status().Update(ctx, deploymentMonitor); err != nil {
-				log.Error(err, "Failed to update DeploymentMonitor status after sending email")
-				return ctrl.Result{}, err
-			}
-			// After updating status and sending email, we can stop processing for this reconciliation.
-			// The status update will trigger another reconcile, which will then find the hash matches.
-			return ctrl.Result{}, nil
 		}
+
+		log.Info("Email notification sent successfully", "Recipient", deploymentMonitor.Spec.RecipientEmail, "Deployment", dep.Name)
+
+		// Update the DeploymentMonitor's status
+		deploymentMonitor.Status.LastNotificationTime = &metav1.Time{Time: time.Now()}
+		deploymentMonitor.Status.LastNotifiedDeploymentHash = currentDeploymentHash
+		if err := r.Status().Update(ctx, deploymentMonitor); err != nil {
+			log.Error(err, "Failed to update DeploymentMonitor status after sending email")
+			return ctrl.Result{}, err
+		}
+		// After updating status and sending email, we can stop processing for this reconciliation.
+		// The status update will trigger another reconcile, which will then find the hash matches.
+		return ctrl.Result{}, nil
 	}
 
 	// If we reached here, no changes were detected or emails sent for any monitored deployment.
