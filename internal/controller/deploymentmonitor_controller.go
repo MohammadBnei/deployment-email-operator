@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-20.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,11 +19,8 @@ package controller
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"net/smtp"
-	"sort"
 	"strconv"
 	"strings"
 	"text/template"
@@ -110,31 +107,59 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 		}
 	}
 
-	if len(monitoredDeployments) == 0 {
-		log.Info("No deployments found matching criteria for DeploymentMonitor", "DeploymentMonitor.Name", deploymentMonitor.Name)
-		// If no deployments are monitored, and the status has a hash, clear it.
-		if deploymentMonitor.Status.LastNotifiedDeploymentHash != "" {
-			deploymentMonitor.Status.LastNotifiedDeploymentHash = ""
-			deploymentMonitor.Status.LastNotificationTime = nil
-			if err := r.Status().Update(ctx, deploymentMonitor); err != nil {
-				log.Error(err, "Failed to clear DeploymentMonitor status when no deployments are monitored")
-				return ctrl.Result{}, err
-			}
-		}
-		return ctrl.Result{}, nil // No deployments to monitor, no need to requeue immediately
+	// Initialize the map if it's nil
+	if deploymentMonitor.Status.LastNotifiedDeploymentMap == nil {
+		deploymentMonitor.Status.LastNotifiedDeploymentMap = make(map[string]monitorv1.DeploymentState)
 	}
 
-	// Calculate a combined hash for all currently monitored deployments
-	// This ensures that if any of the monitored deployments change, the overall hash changes.
-	currentMonitoredDeploymentsHash := calculateCombinedDeploymentsHash(monitoredDeployments)
+	var changedDeployments []appsv1.Deployment
+	// Keep track of deployments that are currently monitored to clean up old entries in the status map
+	currentMonitoredDeploymentKeys := make(map[string]bool)
 
-	// If the current state of monitored deployments matches the last notified state, do nothing.
-	if currentMonitoredDeploymentsHash == deploymentMonitor.Status.LastNotifiedDeploymentHash {
-		log.V(1).Info("Monitored deployments state unchanged, no notification needed", "DeploymentMonitor.Name", deploymentMonitor.Name, "Hash", currentMonitoredDeploymentsHash)
+	for _, dep := range monitoredDeployments {
+		image := "N/A"
+		if len(dep.Spec.Template.Spec.Containers) > 0 {
+			image = dep.Spec.Template.Spec.Containers[0].Image
+		}
+		replicas := int32(1)
+		if dep.Spec.Replicas != nil {
+			replicas = *dep.Spec.Replicas
+		}
+		deploymentKey := fmt.Sprintf("%s/%s", dep.Namespace, dep.Name)
+		currentMonitoredDeploymentKeys[deploymentKey] = true
+
+		// Compare with the last notified state
+		lastState, exists := deploymentMonitor.Status.LastNotifiedDeploymentMap[deploymentKey]
+		if !exists || lastState.Image != image || lastState.Replicas != replicas {
+			changedDeployments = append(changedDeployments, dep)
+			// Update the last notified state in the map for the current reconciliation cycle
+			deploymentMonitor.Status.LastNotifiedDeploymentMap[deploymentKey] = monitorv1.DeploymentState{
+				Image:    image,
+				Replicas: replicas,
+			}
+		}
+	}
+
+	// Clean up entries in LastNotifiedDeploymentMap for deployments that are no longer monitored
+	for key := range deploymentMonitor.Status.LastNotifiedDeploymentMap {
+		if _, found := currentMonitoredDeploymentKeys[key]; !found {
+			delete(deploymentMonitor.Status.LastNotifiedDeploymentMap, key)
+			log.Info("Removed unmonitored deployment from status map", "DeploymentMonitor.Name", deploymentMonitor.Name, "DeploymentKey", key)
+		}
+	}
+
+	if len(changedDeployments) == 0 {
+		log.V(1).Info("No changes detected for monitored deployments", "DeploymentMonitor.Name", deploymentMonitor.Name)
+		// If there were changes to the status map (e.g., cleanup of old entries), update the status.
+		// Otherwise, just requeue for periodic check.
+		if err := r.Status().Update(ctx, deploymentMonitor); err != nil {
+			log.Error(err, "Failed to update DeploymentMonitor status after cleanup or no changes")
+			return ctrl.Result{}, err
+		}
 		return ctrl.Result{RequeueAfter: 5 * time.Minute}, nil // Requeue to check periodically
 	}
 
-	log.Info("Monitored Deployment(s) change detected", "DeploymentMonitor.Name", deploymentMonitor.Name, "OldHash", deploymentMonitor.Status.LastNotifiedDeploymentHash, "NewHash", currentMonitoredDeploymentsHash)
+	log.Info("Changes detected for monitored Deployment(s)", "DeploymentMonitor.Name", deploymentMonitor.Name, "ChangedCount", len(changedDeployments))
 
 	// Check if SMTPSecretName is provided before attempting to fetch config
 	if deploymentMonitor.Spec.SMTPSecretName == "" {
@@ -163,7 +188,7 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	}
 	var templateData []DeploymentInfo
 
-	for _, dep := range monitoredDeployments {
+	for _, dep := range changedDeployments {
 		image := "N/A"
 		if len(dep.Spec.Template.Spec.Containers) > 0 {
 			image = dep.Spec.Template.Spec.Containers[0].Image
@@ -223,14 +248,10 @@ func (r *DeploymentMonitorReconciler) Reconcile(ctx context.Context, req ctrl.Re
 	log.Info("Email notification sent successfully", "Recipient", deploymentMonitor.Spec.RecipientEmail, "DeploymentMonitor", deploymentMonitor.Name)
 
 	// Update the DeploymentMonitor's status with the new combined hash
-	// Only update if the hash has actually changed to avoid unnecessary status updates
-	if deploymentMonitor.Status.LastNotifiedDeploymentHash != currentMonitoredDeploymentsHash {
-		deploymentMonitor.Status.LastNotificationTime = &metav1.Time{Time: time.Now()}
-		deploymentMonitor.Status.LastNotifiedDeploymentHash = currentMonitoredDeploymentsHash
-		if err := r.Status().Update(ctx, deploymentMonitor); err != nil {
-			log.Error(err, "Failed to update DeploymentMonitor status after sending email")
-			return ctrl.Result{}, err
-		}
+	deploymentMonitor.Status.LastNotificationTime = &metav1.Time{Time: time.Now()}
+	if err := r.Status().Update(ctx, deploymentMonitor); err != nil {
+		log.Error(err, "Failed to update DeploymentMonitor status after sending email")
+		return ctrl.Result{}, err
 	}
 
 	// Requeue after a certain duration to periodically check for changes,
@@ -314,38 +335,6 @@ func (r *DeploymentMonitorReconciler) getSMTPConfig(ctx context.Context, dm *mon
 		Username: string(smtpUsername),
 		Password: string(smtpPassword),
 	}, nil
-}
-
-// calculateDeploymentHash generates a SHA256 hash based on the deployment's image and replicas.
-func calculateDeploymentHash(image string, replicas int32) string {
-	data := fmt.Sprintf("%s-%d", image, replicas)
-	hash := sha256.Sum256([]byte(data))
-	return hex.EncodeToString(hash[:])
-}
-
-// calculateCombinedDeploymentsHash generates a SHA256 hash based on the combined state of multiple deployments.
-// This ensures a consistent hash regardless of the order of deployments in the slice.
-func calculateCombinedDeploymentsHash(deployments []appsv1.Deployment) string {
-	var deploymentStates []string
-	for _, dep := range deployments {
-		image := "N/A"
-		if len(dep.Spec.Template.Spec.Containers) > 0 {
-			image = dep.Spec.Template.Spec.Containers[0].Image
-		}
-		replicas := int32(1)
-		if dep.Spec.Replicas != nil {
-			replicas = *dep.Spec.Replicas
-		}
-		// Include namespace and name to differentiate deployments
-		deploymentStates = append(deploymentStates, fmt.Sprintf("%s/%s:%s-%d", dep.Namespace, dep.Name, image, replicas))
-	}
-
-	// Sort the states to ensure a consistent hash regardless of the order in the input slice
-	sort.Strings(deploymentStates)
-	combinedData := strings.Join(deploymentStates, "|")
-
-	hash := sha256.Sum256([]byte(combinedData))
-	return hex.EncodeToString(hash[:])
 }
 
 // SetupWithManager sets up the controller with the Manager.
