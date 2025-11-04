@@ -298,7 +298,7 @@ func (r *DeploymentMonitorReconciler) getSMTPConfig(ctx context.Context, dm *mon
 	// For now, let's assume the secret is in the `default` namespace or the namespace where the operator runs.
 	// A more robust solution would be to add a `SMTPSecretNamespace` field to the DeploymentMonitorSpec.
 	secretName := types.NamespacedName{
-		Name:      dm.Spec.SMTPSecretName,
+		Name: dm.Spec.SMTPSecretName,
 	}
 
 	err := r.Get(ctx, secretName, secret)
