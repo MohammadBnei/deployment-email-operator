@@ -48,8 +48,22 @@ type DeploymentMonitor struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+<<<<<<< HEAD
+	// metadata is a standard object metadata
+	// +optional
+	metav1.ObjectMeta `json:"metadata,omitzero"`
+
+	// spec defines the desired state of DeploymentMonitor
+	// +required
+	Spec DeploymentMonitorSpec `json:"spec"`
+
+	// status defines the observed state of DeploymentMonitor
+	// +optional
+	Status DeploymentMonitorStatus `json:"status,omitzero"`
+=======
 	Spec   DeploymentMonitorSpec   `json:"spec,omitempty"`
 	Status DeploymentMonitorStatus `json:"status,omitempty"`
+>>>>>>> tmp-original-18-11-25-01-44
 }
 
 // +kubebuilder:object:root=true
@@ -57,7 +71,7 @@ type DeploymentMonitor struct {
 // DeploymentMonitorList contains a list of DeploymentMonitor
 type DeploymentMonitorList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata,omitzero"`
 	Items           []DeploymentMonitor `json:"items"`
 }
 

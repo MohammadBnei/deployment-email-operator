@@ -2,13 +2,17 @@
 # This file is used to track the info used to scaffold your project
 # and allow the plugins properly work.
 # More info: https://book.kubebuilder.io/reference/project-config.html
-cliVersion: 4.9.0
+cliVersion: 4.10.1
 domain: bnei.dev
 layout:
 - go.kubebuilder.io/v4
 plugins:
+<<<<<<< HEAD
+  grafana.kubebuilder.io/v1-alpha: {}
+=======
   autoupdate.kubebuilder.io/v1-alpha: {}
   helm.kubebuilder.io/v1-alpha: {}
+>>>>>>> tmp-original-18-11-25-01-44
 projectName: deployment-email-operator
 repo: deployment-email-operator
 resources:

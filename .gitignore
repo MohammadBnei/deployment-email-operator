@@ -25,4 +25,10 @@ go.work
 *.swp
 *.swo
 *~
+<<<<<<< HEAD
+
+# Kubeconfig might contain secrets
+*.kubeconfig
+=======
 .aider*
+>>>>>>> tmp-original-18-11-25-01-44

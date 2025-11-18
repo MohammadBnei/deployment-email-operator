@@ -45,7 +45,15 @@ This operator is built using [Kubebuilder](https://github.com/kubernetes-sigs/ku
 
 ## Getting Started
 
+<<<<<<< HEAD
+### Prerequisites
+- go version v1.24.6+
+- docker version 17.03+.
+- kubectl version v1.11.3+.
+- Access to a Kubernetes v1.11.3+ cluster.
+=======
 Follow these steps to get your Deployment Monitor Operator up and running.
+>>>>>>> tmp-original-18-11-25-01-44
 
 ### 1. Install Kubebuilder
 
@@ -173,6 +181,12 @@ kubectl apply -f test-deployment.yaml
 
 You should observe the operator picking up this Deployment. Now, make a change to the Deployment, for example, update its image:
 
+<<<<<<< HEAD
+1. Build the chart using the optional helm plugin
+
+```sh
+kubebuilder edit --plugins=helm/v2-alpha
+=======
 ```yaml
 # test-deployment-updated.yaml
 apiVersion: apps/v1
@@ -197,6 +211,7 @@ spec:
         image: nginx:1.24.0 # Updated image
         ports:
         - containerPort: 80
+>>>>>>> tmp-original-18-11-25-01-44
 ```
 
 Apply the update:
